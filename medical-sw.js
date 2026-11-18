@@ -1,6 +1,6 @@
 // Built medical shell only. A complete build is installed atomically.
 const base = new URL("./", self.location.href);
-const build = "mwmaaqgv-w4osdr1o";
+const build = "mwmawnpi-ecpyr8w1";
 const cacheName = "medical-shell-" + build;
 function releaseUrl(path) {
   const url = new URL(path, base);
@@ -99,7 +99,7 @@ self.addEventListener("fetch", (event) => {
     })());
     return;
   }
-  if (url.pathname.startsWith(base.pathname + "assets/") || url.pathname.startsWith(base.pathname + "icons/"))
+  if (url.pathname.startsWith(base.pathname + "assets/") || url.pathname.startsWith(base.pathname + "icons/") || url.pathname.startsWith(base.pathname + "content/covers/"))
     event.respondWith(
       (async () => {
         const cache = await caches.open(cacheName),
