@@ -1,0 +1,1 @@
+import{t as e}from"./MedicalApp-BZoN-il7.js";export{e as openPdf};
