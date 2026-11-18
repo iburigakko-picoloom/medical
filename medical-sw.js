@@ -1,6 +1,6 @@
 // Built medical shell only. A complete build is installed atomically.
 const base = new URL("./", self.location.href);
-const build = new URL(self.location.href).searchParams.get("build");
+const build = "mwm8doev-e9i9jr7y";
 const cacheName = "medical-shell-" + build;
 self.addEventListener("install", (event) =>
   event.waitUntil(
@@ -9,22 +9,19 @@ self.addEventListener("install", (event) =>
         cache: "no-store",
       });
       if (!response.ok) throw Error("Missing build manifest");
-      const { files } = await response.json();
+      const { files, buildId } = await response.json();
+      if (buildId !== build) throw Error("Medical release changed during install");
       const required = [
         "medical.html","medical.webmanifest","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png",
         ...files.filter((f) => f.endsWith(".js") || f.endsWith(".css")),
       ];
       const cache = await caches.open(cacheName);
-      try {
-        await cache.addAll(
-          required.map(
-            (p) => new Request(new URL(p, base), { cache: "reload" }),
-          ),
-        );
-      } catch (e) {
-        await caches.delete(cacheName);
-        throw e;
-      }
+      await cache.addAll(
+        required.map(p => new Request(new URL(p, base), { cache: "reload" })),
+      );
+      const shell = await cache.match(new URL("medical.html", base));
+      if (!(await shell.text()).includes(`name="quiz-build-id" content="${build}"`))
+        throw Error("Medical HTML and assets belong to different releases");
     })(),
   ),
 );
@@ -50,15 +47,24 @@ self.addEventListener("fetch", (event) => {
   if (
     req.mode === "navigate" &&
     (url.pathname === base.pathname ||
-      url.pathname === base.pathname + "medical.html")
+      url.pathname === base.pathname + "medical.html" ||
+      url.pathname === base.pathname + "index.html")
   ) {
     event.respondWith(
-      caches
-        .open(cacheName)
-        .then(
-          async (c) =>
-            (await c.match(new URL("medical.html", base))) || fetch(req),
-        ),
+      (async () => {
+        // The next online visit must be able to discover a newer release.
+        // During an exercise the current document stays open.
+        try {
+          const response = await fetch(req, { cache: "no-store" });
+          if (response.ok) return response;
+          const cached = await caches.match(new URL("medical.html", base), {cacheName});
+          return cached ?? response;
+        } catch (error) {
+          const cached = await caches.match(new URL("medical.html", base), {cacheName});
+          if (cached) return cached;
+          throw error;
+        }
+      })(),
     );
     return;
   }
