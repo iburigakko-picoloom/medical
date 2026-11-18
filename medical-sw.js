@@ -1,27 +1,37 @@
 // Built medical shell only. A complete build is installed atomically.
 const base = new URL("./", self.location.href);
-const build = "mwma3nq9-do7zjv53";
+const build = "mwmaaqgv-w4osdr1o";
 const cacheName = "medical-shell-" + build;
+function releaseUrl(path) {
+  const url = new URL(path, base);
+  url.searchParams.set("release", build);
+  return url;
+}
+
 self.addEventListener("install", (event) =>
   event.waitUntil(
     (async () => {
-      const response = await fetch(new URL("precache-manifest.json", base), {
+      const response = await fetch(releaseUrl("precache-manifest.json"), {
         cache: "no-store",
       });
       if (!response.ok) throw Error("Missing build manifest");
       const { files, buildId } = await response.json();
       if (buildId !== build) throw Error("Medical release changed during install");
+      const shell = await fetch(releaseUrl("medical.html"), {cache: "no-store"});
+      if (!shell.ok || !(await shell.clone().text()).includes(`name="quiz-build-id" content="${build}"`))
+        throw Error("Medical HTML and assets belong to different releases");
+      const manifest = await fetch(releaseUrl("medical.webmanifest"), {cache: "no-store"});
+      if (!manifest.ok) throw Error("Missing Medical manifest");
       const required = [
-        "medical.html","medical.webmanifest","icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png",
+        "icons/icon-192.png","icons/icon-512.png","icons/maskable-512.png",
         ...files.filter((f) => f.endsWith(".js") || f.endsWith(".css")),
       ];
       const cache = await caches.open(cacheName);
       await cache.addAll(
         required.map(p => new Request(new URL(p, base), { cache: "reload" })),
       );
-      const shell = await cache.match(new URL("medical.html", base));
-      if (!(await shell.text()).includes(`name="quiz-build-id" content="${build}"`))
-        throw Error("Medical HTML and assets belong to different releases");
+      await cache.put(new URL("medical.html", base), shell);
+      await cache.put(new URL("medical.webmanifest", base), manifest);
       await self.skipWaiting();
     })(),
   ),
