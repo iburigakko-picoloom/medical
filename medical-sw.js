@@ -1,6 +1,6 @@
 // Built medical shell only. A complete build is installed atomically.
 const base = new URL("./", self.location.href);
-const build = "mwm8doev-e9i9jr7y";
+const build = "mwma3nq9-do7zjv53";
 const cacheName = "medical-shell-" + build;
 self.addEventListener("install", (event) =>
   event.waitUntil(
@@ -22,19 +22,29 @@ self.addEventListener("install", (event) =>
       const shell = await cache.match(new URL("medical.html", base));
       if (!(await shell.text()).includes(`name="quiz-build-id" content="${build}"`))
         throw Error("Medical HTML and assets belong to different releases");
+      await self.skipWaiting();
     })(),
   ),
 );
-self.addEventListener("activate", (event) =>
-  event.waitUntil(
-    (async () => {
-      for (const key of await caches.keys())
-        if (key.startsWith("medical-shell-") && key !== cacheName)
-          await caches.delete(key);
-      await self.clients.claim();
-    })(),
-  ),
-);
+// An open exercise can still request its original lazy chunks after takeover.
+async function olderShells() {
+  const shells = (await caches.keys()).filter(key => key.startsWith("medical-shell-"));
+  const position = shells.indexOf(cacheName);
+  return position < 0 ? [] : shells.slice(0, position);
+}
+
+async function pruneUnusedShells(replacingClient) {
+  const clients = await self.clients.matchAll({type: "window", includeUncontrolled: true});
+  if (clients.some(client => client.id !== replacingClient && client.url.startsWith(base.href))) return;
+  for (const key of await olderShells()) await caches.delete(key);
+}
+
+self.addEventListener("activate", event => {
+  event.waitUntil((async () => {
+    await self.clients.claim();
+    await pruneUnusedShells();
+  })());
+});
 self.addEventListener("fetch", (event) => {
   const req = event.request,
     url = new URL(req.url);
@@ -50,6 +60,7 @@ self.addEventListener("fetch", (event) => {
       url.pathname === base.pathname + "medical.html" ||
       url.pathname === base.pathname + "index.html")
   ) {
+    event.waitUntil(pruneUnusedShells(event.replacesClientId));
     event.respondWith(
       (async () => {
         // The next online visit must be able to discover a newer release.
@@ -68,12 +79,28 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
-  if (url.pathname.startsWith(base.pathname + "assets/") || url.pathname.startsWith(base.pathname+"icons/") || url.pathname===base.pathname+"medical.webmanifest")
+  if (url.pathname === base.pathname + "medical.webmanifest") {
+    event.respondWith((async () => {
+      try {
+        const online = await fetch(req, {cache: "no-store"});
+        if (online.ok) return online;
+      } catch { /* Use the installed manifest offline. */ }
+      return await caches.match(new URL("medical.webmanifest", base), {cacheName}) ?? Response.error();
+    })());
+    return;
+  }
+  if (url.pathname.startsWith(base.pathname + "assets/") || url.pathname.startsWith(base.pathname + "icons/"))
     event.respondWith(
       (async () => {
         const cache = await caches.open(cacheName),
           hit = await cache.match(req, {ignoreVary:true});
         if (hit) return hit;
+        if (/[-][A-Za-z0-9_-]{8}\.(js|css|mjs)$/.test(url.pathname)) {
+          for (const key of (await olderShells()).reverse()) {
+            const previous = await caches.match(req, {cacheName: key, ignoreVary: true});
+            if (previous) return previous;
+          }
+        }
         const res = await fetch(req);
         if (res.ok) await cache.put(req, res.clone());
         return res;

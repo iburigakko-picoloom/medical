@@ -3,7 +3,7 @@
   "name": "Quiz Make Medical",
   "short_name": "Quiz Medical",
   "lang": "ja",
-  "start_url": "./medical.html",
+  "start_url": "./index.html?launch=pwa",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f5f8f7",
