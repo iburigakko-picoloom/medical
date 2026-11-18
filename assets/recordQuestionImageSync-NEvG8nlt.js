@@ -1,0 +1,1 @@
+import"./storage-BPEx2KLl.js";import{r as e}from"./questionImageRecords-C5uWW2Hs.js";import"./questionImageCloud-Cz8diFVP.js";var t=(e,t)=>e.project===t.project&&e.userId===t.userId&&e.syncId===t.syncId,n=`appPullMedia`;function r(t){if(t===null)throw Error(`画像の削除情報は画像本体を持ちません。`);let n=JSON.parse(t);if(!e(n))throw Error(`画像の差分情報が不正です。`);return n}export{r as n,t as r,n as t};

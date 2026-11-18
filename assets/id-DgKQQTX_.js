@@ -1,0 +1,1 @@
+function e(e){let t=crypto.getRandomValues(new Uint32Array(2));return`${e}_${Date.now().toString(36)}_${t[0].toString(36)}${t[1].toString(36)}`}export{e as t};
