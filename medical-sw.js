@@ -1,6 +1,6 @@
 // Built medical shell only. A complete build is installed atomically.
 const base = new URL("./", self.location.href);
-const build = "mwno07za-heyzqmsv";
+const build = "mwnq1nid-ui0p4xvg";
 const cacheName = "medical-shell-" + build;
 function releaseUrl(path) {
   const url = new URL(path, base);
