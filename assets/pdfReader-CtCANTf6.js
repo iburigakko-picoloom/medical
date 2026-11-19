@@ -1,0 +1,1 @@
+import{t as e}from"./MedicalApp-ljg8NIOb.js";export{e as openPdf};
