@@ -1,0 +1,1 @@
+import{t as e}from"./MedicalApp-VjmipKUA.js";export{e as openPdf};
