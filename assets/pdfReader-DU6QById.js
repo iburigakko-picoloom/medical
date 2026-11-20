@@ -1,0 +1,1 @@
+import{t as e}from"./MedicalApp-C90Sysr-.js";export{e as openPdf};
