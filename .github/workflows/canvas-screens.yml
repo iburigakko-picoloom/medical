@@ -1,0 +1,56 @@
+name: Publish Canvas screens
+on:
+  push:
+    branches: [main]
+    paths: ['index.html', 'build-info.json', '.github/canvas/**', '.github/workflows/canvas-screens.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: canvas-screen-publication
+  cancel-in-progress: false
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --prefix .github/canvas --ignore-scripts
+      - run: .github/canvas/node_modules/.bin/playwright-core install --with-deps chromium
+      - run: node .github/canvas/capture.mjs . snapshot.json "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canvas-snapshot
+          path: snapshot.json
+          retention-days: 1
+  publish:
+    needs: capture
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: canvas-snapshots
+      - uses: actions/download-artifact@v4
+        with:
+          name: canvas-snapshot
+          path: ${{ runner.temp }}/capture
+      - name: Publish the versioned design
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="$RUNNER_TEMP/capture/snapshot.json"
+          build=$(jq -er '.source.buildId | select(test("^[a-zA-Z0-9_-]{1,80}$"))' "$file")
+          if test -f "$build.json"; then exit 0; fi
+          cp "$file" "$build.json"
+          git config user.name github-actions[bot]
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$build.json"
+          git commit -m "Publish Canvas screens for $build"
+          git push origin HEAD:canvas-snapshots
