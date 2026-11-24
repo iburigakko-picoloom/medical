@@ -62,11 +62,16 @@ export async function captureRoutes(page, url, buildId, routes, captureScreen, s
     await arrive(library);
     // Folder headings render before the release finishes loading. A snapshot
     // must contain every published subject even on a cold, slower CI browser.
+    const toggle=button(page,id==='clinical'?/^臨床医学/:/^補完分野/);
+    const panelId=await toggle.getAttribute('aria-controls');
+    if(!/^medical-library-\d+$/.test(panelId || '')) throw Error('Missing subject panel: '+id);
+    const panel=page.locator('#'+panelId+'[data-open="true"]:not([inert])');
+    await panel.waitFor();
     await page.waitForLoadState('networkidle');
     for (const name of subjects) {
       if (name==='循環器') continue;
       const label=new RegExp('^'+name.replace(/[.*+?^\x24{}()|[\]\\]/g,'\\$&')+'(?:\\s|\\d)');
-      const candidate=button(page,label);
+      const candidate=panel.getByRole('button',{name:label});
       if(!await candidate.count())continue;
       await candidate.and(page.locator('button:not([disabled]):not([aria-disabled="true"])')).waitFor();
       const target = 'subject-' + createHash('sha256').update(name).digest('hex').slice(0,12);
@@ -104,7 +109,7 @@ export async function captureRoutes(page, url, buildId, routes, captureScreen, s
     if(planEditor)await markPlanControls();
     await page.evaluate(()=>document.fonts.ready);
     const screen = await page.evaluate(captureScreen,{id:route.id,name:route.name,purpose:route.purpose});
-    if (screen.actions.length!==route.edges.length || !screen.html.includes('<h1')) throw Error('Incomplete capture: '+route.id);
+    if (screen.actions.length!==route.edges.length || !screen.html.includes('<h1')) throw Error('Incomplete capture: '+route.id+'; expected '+route.edges.length+', captured '+screen.actions.length+'; missing '+route.edges.filter(([,id])=>!screen.actions.some(a=>a.targetId===id)).map(([,id])=>id).join(','));
     if(planEditor){
       await button(page,'毎日○問').click();
       await markPlanControls();
