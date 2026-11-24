@@ -30,10 +30,14 @@ try {
   });
   const page = await context.newPage();
   await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
-  const captured = await captureRoutes(page, origin + '/medical/', buildId, makeRoutes(), captureScreen);
-  const version = /共通教材[\s　]*v(\d+)/.exec(captured.find(s=>s.id==='settings').html)?.[1];
-  if(!version) throw Error('Missing published common material version');
+  await page.goto(origin+'/medical/');
+  await page.getByRole('button',{name:'設定',exact:true}).click();
+  const versionTitle=await page.getByRole('heading',{name:/共通教材[\s　]*v\d+/}).innerText();
+  const version=/v(\d+)/.exec(versionTitle)[1];
   const bank = JSON.parse(await readFile(resolve(release,'content/common-v'+version+'.json'),'utf8'));
+  const subjects=bank.pdfs.map(pdf=>pdf.title.replace(/\s+v\d+.*$/i,''));
+  const captured = await captureRoutes(page, origin + '/medical/', buildId, makeRoutes(), captureScreen, subjects);
+  if(subjects.some(name=>!captured.some(s=>s.name===name && s.actions.some(a=>a.label.includes('学習計画')))))throw Error('Missing published subject workflow');
   const covers={};
   for (const pdf of bank.pdfs) {
     if (!/^[0-9a-f]{64}$/.test(pdf.sha256)) continue;
@@ -45,7 +49,7 @@ try {
   const date = new Date().toISOString();
   const snapshot = {
     schemaVersion:1, kind:'design-snapshot',
-    source:{url:'https://github.com/iburigakko-picoloom/medical', branch:'main', commit, confidence:'code', buildId:'v4-'+buildId},
+    source:{url:'https://github.com/iburigakko-picoloom/medical', branch:'main', commit, confidence:'code', buildId:'v5-'+buildId},
     design:{schemaVersion:1, id:'quiz-medical-public', title:'Quiz Medical', revision:1, createdAt:date, updatedAt:date,
       description:'公開画面の操作記録と、ログイン後のモックアップ', screens, components:[], connections:[], implementation:[], decisions:[]}
   };

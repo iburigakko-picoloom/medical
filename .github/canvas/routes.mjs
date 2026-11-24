@@ -49,7 +49,7 @@ export function makeRoutes() {
   return routes;
 }
 
-export async function captureRoutes(page, url, buildId, routes, captureScreen) {
+export async function captureRoutes(page, url, buildId, routes, captureScreen, subjects) {
   const screens = [];
   const arrive = async route => {
     await page.goto(url, {waitUntil:'domcontentloaded'});
@@ -60,11 +60,15 @@ export async function captureRoutes(page, url, buildId, routes, captureScreen) {
   for (const id of ['clinical','supplement']) {
     const library = routes.find(r=>r.id===id);
     await arrive(library);
-    const names = await page.getByRole('button',{name:/セット.*問/}).evaluateAll(elements=>
-      elements.filter(el=>!el.disabled && !el.closest('[inert]')).map(el=>el.innerText.replace(/\s+/g,' ').trim()));
-    for (const label of names) {
-      if (/^循環器\s/.test(label)) continue;
-      const name = label.replace(/\s*\d+セット.*$/,'').trim();
+    // Folder headings render before the release finishes loading. A snapshot
+    // must contain every published subject even on a cold, slower CI browser.
+    await page.waitForLoadState('networkidle');
+    for (const name of subjects) {
+      if (name==='循環器') continue;
+      const label=new RegExp('^'+name.replace(/[.*+?^\x24{}()|[\]\\]/g,'\\$&')+'(?:\\s|\\d)');
+      const candidate=button(page,label);
+      if(!await candidate.count())continue;
+      await candidate.and(page.locator('button:not([disabled]):not([aria-disabled="true"])')).waitFor();
       const target = 'subject-' + createHash('sha256').update(name).digest('hex').slice(0,12);
       library.edges.push([label,target]);
       const path=[...library.path,label];
