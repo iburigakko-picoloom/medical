@@ -58,7 +58,7 @@ try {
   const date = new Date().toISOString();
   const snapshot = {
     schemaVersion:1, kind:'design-snapshot',
-    source:{url:'https://github.com/iburigakko-picoloom/medical', branch:'main', commit, confidence:'code', buildId},
+    source:{url:'https://github.com/iburigakko-picoloom/medical', branch:'main', commit, confidence:'code', buildId:'v2-'+buildId},
     design:{schemaVersion:1, id:'quiz-medical-public', title:'Quiz Medical', revision:1, createdAt:date, updatedAt:date,
       description:'Quiz Medical 公開版の主要画面（ログイン前）', screens, components:[], connections:[], implementation:[], decisions:[]}
   };

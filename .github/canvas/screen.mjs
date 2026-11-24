@@ -5,7 +5,7 @@ export function captureScreen({ id, name, tabs, links }) {
   const navigation = root.querySelector('[aria-label="メインメニュー"]');
   const tags = new Set('main section article aside div header footer nav h1 h2 h3 h4 h5 h6 p span strong em b i small br hr ul ol li button label input textarea select option fieldset legend table thead tbody tr th td details summary img figure figcaption progress svg path circle ellipse rect line polyline polygon g title'.split(' '));
   const attributes = 'aria-label aria-hidden aria-current aria-pressed aria-expanded aria-checked placeholder disabled checked role alt viewBox fill stroke stroke-width stroke-linecap stroke-linejoin d cx cy r rx ry x y x1 x2 y1 y2 width height points transform opacity fill-rule clip-rule'.split(' ');
-  const properties = 'display position top right bottom left z-index box-sizing width min-width max-width height min-height max-height margin padding gap flex-direction flex-wrap flex-grow flex-shrink flex-basis align-items align-self justify-content grid-template-columns grid-column grid-row overflow-x overflow-y background-color background-image color border-top border-right border-bottom border-left border-radius box-shadow font-family font-size font-weight line-height text-align text-decoration white-space letter-spacing opacity object-fit vertical-align list-style-type aspect-ratio'.split(' ');
+  const properties = 'display position top right bottom left z-index box-sizing width min-width max-width height min-height max-height margin padding gap flex-direction flex-wrap flex-grow flex-shrink flex-basis align-items align-self align-content justify-content justify-items justify-self grid-template-columns grid-template-rows grid-auto-flow grid-column grid-row overflow-x overflow-y background-color background-image color border-top border-right border-bottom border-left border-radius box-shadow font-family font-size font-weight line-height text-align text-decoration white-space letter-spacing opacity object-fit vertical-align list-style-type aspect-ratio'.split(' ');
   const rules = new Map();
   const common = new Map();
   const actions = [];
@@ -22,6 +22,10 @@ export function captureScreen({ id, name, tabs, links }) {
     for (const prop of properties) {
       let value = typed.get(prop)?.toString() || style.getPropertyValue(prop);
       if (!value || /[<>\\]|url\s*\(|image-set\s*\(|https?:|data:/i.test(value)) continue;
+      // The source app sizes its shell from visualViewport. Keep that behavior
+      // when a designer switches to a preview shorter than the capture tablet.
+      if (prop === 'height' && value === window.innerHeight+'px') value = '100dvh';
+      if (prop === 'width' && value === window.innerWidth+'px') value = '100%';
       // Chromium resolves grid tracks to pixels. Preserve the computed layout within smaller previews.
       if (prop === 'grid-template-columns' && /^([\d.]+px )+[\d.]+px$/.test(value))
         value = value.split(' ').map(v => 'minmax(0,' + parseFloat(v) + 'fr)').join(' ');
