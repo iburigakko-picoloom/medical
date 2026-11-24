@@ -1,19 +1,19 @@
 // Runs in a clean Chromium document. Rebuild the visible DOM from permitted
 // elements and computed styles; never copy app scripts, storage, URLs or handlers.
-export function captureScreen({ id, name, tabs, links }) {
+export function captureScreen({ id, name, purpose }) {
   const root = document.getElementById('root');
-  const navigation = root.querySelector('[aria-label="メインメニュー"]');
+
   const tags = new Set('main section article aside div header footer nav h1 h2 h3 h4 h5 h6 p span strong em b i small br hr ul ol li button label input textarea select option fieldset legend table thead tbody tr th td details summary img figure figcaption progress svg path circle ellipse rect line polyline polygon g title'.split(' '));
   const attributes = 'aria-label aria-hidden aria-current aria-pressed aria-expanded aria-checked placeholder disabled checked role alt viewBox fill stroke stroke-width stroke-linecap stroke-linejoin d cx cy r rx ry x y x1 x2 y1 y2 width height points transform opacity fill-rule clip-rule'.split(' ');
   const properties = 'display position top right bottom left z-index box-sizing width min-width max-width height min-height max-height margin padding gap flex-direction flex-wrap flex-grow flex-shrink flex-basis align-items align-self align-content justify-content justify-items justify-self grid-template-columns grid-template-rows grid-auto-flow grid-column grid-row overflow-x overflow-y background-color background-image color border-top border-right border-bottom border-left border-radius box-shadow font-family font-size font-weight line-height text-align text-decoration white-space letter-spacing opacity object-fit vertical-align list-style-type aspect-ratio'.split(' ');
   const rules = new Map();
   const common = new Map();
   const actions = [];
-  const counts = new Map();
+
   function clone(el, path) {
     const tag = el.localName;
     const style = getComputedStyle(el);
-    if (style.display === 'none' || el.hidden || ['script','style','link','iframe','noscript','source'].includes(tag)) return null;
+    if (style.display === 'none' || style.visibility === 'hidden' || el.inert || el.hidden || el.hasAttribute('data-canvas-omit') || ['script','style','link','iframe','noscript','source'].includes(tag)) return null;
     const svg = el.namespaceURI === 'http://www.w3.org/2000/svg';
     if (svg && !tags.has(tag)) return null;
     const dest = svg ? document.createElementNS(el.namespaceURI, tag) : document.createElement(tags.has(tag) ? tag : 'div');
@@ -61,15 +61,11 @@ export function captureScreen({ id, name, tabs, links }) {
     if (!svg) {
       // A structural ID remains stable when only a label or its styling changes.
       dest.setAttribute('data-node-id', 'n-' + path);
-      const label = el.getAttribute('aria-label') || el.textContent.trim();
-      const destinations = navigation?.contains(el) ? tabs : links;
-      const entry = tag === 'button' && Object.entries(destinations).find(([,text]) => text === label);
-      if (entry) {
-        const target = entry[0], key = (navigation?.contains(el) ? 'nav-' : 'open-') + target;
-        counts.set(key, (counts.get(key) || 0) + 1);
-        if (counts.get(key) > 1) throw Error('Ambiguous tab: ' + label);
+      if (el.dataset.canvasTarget) {
+        const key = el.dataset.canvasEdge;
+        const label = (el.getAttribute('aria-label') || el.innerText).replace(/\s+/g,' ').trim();
         dest.setAttribute('data-node-id', key);
-        actions.push({ id:key, elementId:key, label, type:'navigate', targetId:target });
+        actions.push({ id:key, elementId:key, label, type:'navigate', targetId:el.dataset.canvasTarget });
       }
     }
     let i = 0;
@@ -87,5 +83,5 @@ export function captureScreen({ id, name, tabs, links }) {
   const declarations = entries => entries.map(([prop,value]) => prop+':'+value).join(';');
   const css = 'body{margin:0} :where([class^=qm]){' + declarations([...defaults]) + '}\n' +
     [...rules.values()].map(({cls,css}) => '.' + cls + '{' + declarations(css.filter(([p,v])=>defaults.get(p)!==v)) + '}').join('\n');
-  return {id, name, purpose:name, html, css, actions, overlays:[], states:[], status:'draft'};
+  return {id, name, purpose:purpose || name, html, css, actions, overlays:[], states:[], status:'draft'};
 }
