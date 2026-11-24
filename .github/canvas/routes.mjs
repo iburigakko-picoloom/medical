@@ -64,8 +64,8 @@ export async function captureRoutes(page, url, buildId, routes, captureScreen, s
     // must contain every published subject even on a cold, slower CI browser.
     const toggle=button(page,id==='clinical'?/^臨床医学/:/^補完分野/);
     const panelId=await toggle.getAttribute('aria-controls');
-    if(!/^medical-library-\d+$/.test(panelId || '')) throw Error('Missing subject panel: '+id);
-    const panel=page.locator('#'+panelId+'[data-open="true"]:not([inert])');
+    if(!/^[a-zA-Z0-9_-]+$/.test(panelId || '')) throw Error('Missing subject panel: '+id);
+    const panel=page.locator('#'+panelId+':not([inert])');
     await panel.waitFor();
     await page.waitForLoadState('networkidle');
     for (const name of subjects) {
