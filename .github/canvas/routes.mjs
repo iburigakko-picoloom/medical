@@ -22,8 +22,8 @@ export function makeRoutes() {
     {id:'study',name:'学習',path:[tab('study')],marker:expanded(false),edges:[['資料','materials'],[openClinical,'clinical'],[/^補完分野/,'supplement']]},
     {id:'groups',name:'グループ',path:[tab('groups')],marker:heading('グループ')},
     {id:'settings',name:'設定',path:[tab('settings')],marker:has('LINEでログイン'),edges:[['改善履歴','changes'],['報告履歴','reports']]},
-    {id:'clinical',name:'学習・臨床医学',path:clinical,marker:expanded(true),edges:[[openClinical,'study'],[openCardio,'cardio']]},
-    {id:'supplement',name:'学習・補完分野',path:[tab('study'),/^補完分野/],marker:page=>button(page,/^補完分野/).and(page.locator('[aria-expanded="true"]')),edges:[[/^補完分野/,'study']]},
+    {id:'clinical',name:'学習・臨床医学',path:clinical,marker:expanded(true),edges:[[openClinical,'study'],[openCardio,'cardio'],['資料','materials']]},
+    {id:'supplement',name:'学習・補完分野',path:[tab('study'),/^補完分野/],marker:page=>button(page,/^補完分野/).and(page.locator('[aria-expanded="true"]')),edges:[[/^補完分野/,'study'],['資料','materials']]},
     {id:'materials',name:'学習資料',path:[tab('study'),'資料'],marker:page=>button(page,'資料').and(page.locator('[aria-pressed="true"]')),edges:[['問題','study']]},
     {id:'cardio',name:'循環器',path:cardio,marker:has(practice),edges:[back('clinical'),[list,'questions'],[practice,'practice'],[/学習計画/,'cardio-plan'],[/追加解説・メモ/,'cardio-notes']]},
     {id:'cardio-plan',name:'循環器・計画を作成',path:[...cardio,/学習計画/],marker:heading('計画を作成'),edges:[back('cardio')]},
@@ -67,7 +67,11 @@ export async function captureRoutes(page, url, buildId, routes, captureScreen) {
       const name = label.replace(/\s*\d+セット.*$/,'').trim();
       const target = 'subject-' + createHash('sha256').update(name).digest('hex').slice(0,12);
       library.edges.push([label,target]);
-      routes.push({id:target,name,path:[...library.path,label],marker:heading(name),edges:[back(id)]});
+      const path=[...library.path,label];
+      const plan=/学習計画/, notes=/追加解説・メモ/;
+      routes.push({id:target,name,path,marker:heading(name),edges:[back(id),[plan,target+'-plan'],[notes,target+'-notes']]});
+      routes.push({id:target+'-plan',name:name+'・計画を作成',path:[...path,plan],marker:heading('計画を作成'),edges:[back(target)]});
+      routes.push({id:target+'-notes',name:name+'・追加解説とメモ',path:[...path,notes],marker:heading('追加解説・メモ一覧'),edges:[back(target)]});
     }
   }
   for (const route of routes) {
@@ -83,9 +87,33 @@ export async function captureRoutes(page, url, buildId, routes, captureScreen) {
       for (const section of document.querySelectorAll('.quiz-list__section'))
         if (!section.querySelector('.quiz-list__card:not([data-canvas-omit])')) section.dataset.canvasOmit='true';
     });
+    if(route.id.endsWith('-notes')) {
+      await page.locator('.note-explanation-item').evaluateAll(items=>items.slice(2).forEach(el=>el.dataset.canvasOmit='true'));
+      route.purpose='科目の追加解説とメモ。内容は先頭2件を抜粋。';
+    }
+    const planEditor=route.id.endsWith('-plan');
+    const markPlanControls=async()=>{
+      for(const [label,id] of [['毎日○問','plan-daily'],['期限までに1周','plan-deadline'],['この対象と予定で保存','plan-save']])
+        await button(page,label).evaluate((b,id)=>b.dataset.canvasControl=id,id);
+      await button(page,'戻る').evaluate(b=>b.dataset.canvasControl=b.dataset.canvasEdge || 'open-back');
+    };
+    if(planEditor)await markPlanControls();
     await page.evaluate(()=>document.fonts.ready);
     const screen = await page.evaluate(captureScreen,{id:route.id,name:route.name,purpose:route.purpose});
     if (screen.actions.length!==route.edges.length || !screen.html.includes('<h1')) throw Error('Incomplete capture: '+route.id);
+    if(planEditor){
+      await button(page,'毎日○問').click();
+      await markPlanControls();
+      const backButton=button(page,'戻る');
+      await backButton.evaluate((el,key)=>el.dataset.canvasControl=key,screen.actions[0].elementId);
+      const daily=await page.evaluate(captureScreen,{id:route.id,name:route.name});
+      screen.states.push({id:'daily',name:'毎日○問',html:daily.html,css:daily.css},
+        {id:'saved',name:'計画を保存（モック）',html:'<main style="padding:20px"><h1>計画を保存しました</h1><p>モック内の学習計画です。</p><button data-node-id="plan-edit">計画に戻る</button></main>'});
+      for(const [el,label,to] of [['plan-daily','毎日○問','daily'],['plan-deadline','期限までに1周','default'],['plan-edit','計画に戻る','default']])
+        screen.actions.push({id:el,elementId:el,label,type:'setState',targetId:to});
+      screen.actions.push({id:'plan-save',elementId:'plan-save',label:'計画を保存（モック）',type:'simulateRequest',successStateId:'saved'});
+      await arrive(route);
+    }
     screens.push(screen);
     for (const [index,[control,target]] of route.edges.entries()) {
       try {

@@ -2,6 +2,7 @@ import { chromium } from 'playwright-core';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { makeRoutes, captureRoutes } from './routes.mjs';
+import { attachPractice } from './practice.mjs';
 import { loginMockups } from './mockups.mjs';
 import { captureScreen } from './screen.mjs';
 
@@ -29,17 +30,27 @@ try {
   });
   const page = await context.newPage();
   await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
-  const screens = await captureRoutes(page, origin + '/medical/', buildId, makeRoutes(), captureScreen);
+  const captured = await captureRoutes(page, origin + '/medical/', buildId, makeRoutes(), captureScreen);
+  const version = /共通教材[\s　]*v(\d+)/.exec(captured.find(s=>s.id==='settings').html)?.[1];
+  if(!version) throw Error('Missing published common material version');
+  const bank = JSON.parse(await readFile(resolve(release,'content/common-v'+version+'.json'),'utf8'));
+  const covers={};
+  for (const pdf of bank.pdfs) {
+    if (!/^[0-9a-f]{64}$/.test(pdf.sha256)) continue;
+    const image=await readFile(resolve(release,'content/covers/'+pdf.sha256+'.webp')).catch(()=>null);
+    if (image && image.length<=35000) covers[pdf.subjectId]='data:image/webp;base64,'+image.toString('base64');
+  }
+  const screens = await page.evaluate(attachPractice,{screens:captured,bank,covers});
   screens.push(...loginMockups());
   const date = new Date().toISOString();
   const snapshot = {
     schemaVersion:1, kind:'design-snapshot',
-    source:{url:'https://github.com/iburigakko-picoloom/medical', branch:'main', commit, confidence:'code', buildId:'v3-'+buildId},
+    source:{url:'https://github.com/iburigakko-picoloom/medical', branch:'main', commit, confidence:'code', buildId:'v4-'+buildId},
     design:{schemaVersion:1, id:'quiz-medical-public', title:'Quiz Medical', revision:1, createdAt:date, updatedAt:date,
       description:'公開画面の操作記録と、ログイン後のモックアップ', screens, components:[], connections:[], implementation:[], decisions:[]}
   };
   const json = JSON.stringify(snapshot);
-  if (Buffer.byteLength(json) > 4500000 || screens.some(s=>s.html.length>180000 || s.css.length>80000)) throw Error('Design exceeds Canvas limits');
+  if (Buffer.byteLength(json) > 4500000 || screens.some(s=>s.html.length>180000 || s.css.length>80000)) throw Error('Design exceeds Canvas limits: '+Buffer.byteLength(json)+' bytes; '+screens.filter(s=>s.html.length>180000 || s.css.length>80000).map(s=>s.id).join(', '));
   await writeFile(output, json);
   console.log(buildId, screens.map(s => s.name).join(' / '));
 } finally { await browser.close(); }
