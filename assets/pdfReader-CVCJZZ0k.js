@@ -1,0 +1,1 @@
+import{t as e}from"./MedicalApp-BbTH7fli.js";export{e as openPdf};
