@@ -1,0 +1,1 @@
+import"./storage-CvoFIwQY.js";import{r as e}from"./questionImageRecords-C6zAGXYE.js";import"./questionImageCloud-DQD0l3Qh.js";function t(t){if(t===null)throw Error(`画像の削除情報は画像本体を持ちません。`);let n=JSON.parse(t);if(!e(n))throw Error(`画像の差分情報が不正です。`);return n}export{t};
