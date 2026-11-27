@@ -1,0 +1,1 @@
+import{t as e}from"./MedicalApp--LASjmEt.js";export{e as openPdf};
